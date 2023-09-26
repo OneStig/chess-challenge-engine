@@ -165,7 +165,8 @@ public class MyBot : IChessBot
                 Piece p = pl.GetPiece(i);
                 int this_value = 0;
 
-                int ind = tb_ind(p.IsWhite ? 63 - p.Square.Index : p.Square.Index);
+                // if white flip board, otherwise dont (because arrays listed in POV of white)
+                int ind = p.IsWhite ? tb_ind(p.Square.Index) : p.Square.Index;
 
                 switch (p.PieceType) {
                     case PieceType.Pawn:
@@ -194,6 +195,8 @@ public class MyBot : IChessBot
                 }
 
                 sum += p.IsWhite ? this_value : this_value * -1;
+
+                // Console.WriteLine("piece " + p.ToString() + " " + p.Square.ToString() + " " + (p.IsWhite ? this_value : this_value * -1));
             }
         }
 
@@ -206,8 +209,11 @@ public class MyBot : IChessBot
     //     }
     // }
 
+    
+
     public Move Think(Board board, Timer timer)
     {
+        Console.WriteLine("Current Board: " + Eval(board));
         Move[] allMoves = board.GetLegalMoves();
 
         // Pick a random move to play if nothing better is found
@@ -219,7 +225,7 @@ public class MyBot : IChessBot
         foreach (Move move in allMoves)
         {
             board.MakeMove(move);
-            int move_eval = Eval(board) * (board.IsWhiteToMove ? 1 : -1);
+            int move_eval = Eval(board) * (board.IsWhiteToMove ? -1 : 1);
             board.UndoMove(move);
 
             Console.WriteLine(move.ToString() + " " + move_eval);
@@ -231,6 +237,8 @@ public class MyBot : IChessBot
                 best_eval = move_eval;
             }
         }
+
+        Console.WriteLine("Selected move: " + moveToPlay.ToString() + " " + best_eval);
 
         return moveToPlay;
     }
