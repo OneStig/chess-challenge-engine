@@ -5,8 +5,8 @@ public class MyBot : IChessBot
 {
     // a and b correspond to middle and endgame as per PeSTO evaluation
     // Piece values: null, pawn, knight, bishop, rook, queen, king
-    int[] value_a = { 0, 82, 237, 365, 477, 1025, 12000 };
-    int[] value_b = { 0, 94, 281, 297, 512, 936, 12000 };
+    int[] value_mg = { 0, 82, 237, 365, 477, 1025, 12000 };
+    int[] value_eg = { 0, 94, 281, 297, 512, 936, 12000 };
 
     int[] mg_pawn_table = {
         0,   0,   0,   0,   0,   0,  0,   0,
@@ -140,11 +140,71 @@ public class MyBot : IChessBot
         -53, -34, -21, -11, -28, -14, -24, -43
     };
 
+    struct Transposition {
+        public ulong zobrist;
+        public Move move;
+        public int eval;
 
-    int eval(Board board)
-    {
-        return 0;
+        public Transposition(ulong _zobrist, Move _move, int _eval) {
+            zobrist = _zobrist;
+            move = _move;
+            eval = _eval;
+        }
     }
+    int tb_ind(int n) {
+        return (7 - n/8) * 8 + (n % 8);
+    }
+
+    int Eval(Board board)
+    {
+        int sum = 0;
+        PieceList[] all_pl = board.GetAllPieceLists();
+
+        foreach (PieceList pl in all_pl) {
+            for (int i = 0; i < pl.Count; i++) {
+                Piece p = pl.GetPiece(i);
+                int this_value = 0;
+
+                int ind = tb_ind(p.IsWhite ? 63 - p.Square.Index : p.Square.Index);
+
+                switch (p.PieceType) {
+                    case PieceType.Pawn:
+                        this_value = mg_pawn_table[ind] + value_mg[1];
+                        break;
+
+                    case PieceType.Knight:
+                        this_value = mg_knight_table[ind] + value_mg[2];
+                        break;
+
+                    case PieceType.Bishop:
+                        this_value = mg_bishop_table[ind] + value_mg[3];
+                        break;
+
+                    case PieceType.Rook:
+                        this_value = mg_rook_table[ind] + value_mg[4];
+                        break;
+
+                    case PieceType.Queen:
+                        this_value = mg_queen_table[ind] + value_mg[5];
+                        break;
+
+                    case PieceType.King:
+                        this_value = mg_king_table[ind] + value_mg[6];
+                        break;
+                }
+
+                sum += p.IsWhite ? this_value : this_value * -1;
+            }
+        }
+
+        return sum;
+    }
+
+    // Move negaMax(int depth, Board board) {
+    //     if (depth == 0) {
+    //         return eval(board);
+    //     }
+    // }
 
     public Move Think(Board board, Timer timer)
     {
@@ -153,37 +213,25 @@ public class MyBot : IChessBot
         // Pick a random move to play if nothing better is found
         Random rng = new();
         Move moveToPlay = allMoves[rng.Next(allMoves.Length)];
-        int highestValueCapture = 0;
+
+        int best_eval = -100000;
 
         foreach (Move move in allMoves)
         {
-            // Always play checkmate in one
-            if (MoveIsCheckmate(board, move))
+            board.MakeMove(move);
+            int move_eval = Eval(board) * (board.IsWhiteToMove ? 1 : -1);
+            board.UndoMove(move);
+
+            Console.WriteLine(move.ToString() + " " + move_eval);
+
+
+            if (move_eval > best_eval)
             {
                 moveToPlay = move;
-                break;
-            }
-
-            // Find highest value capture
-            Piece capturedPiece = board.GetPiece(move.TargetSquare);
-            int capturedPieceValue = value_a[(int)capturedPiece.PieceType];
-
-            if (capturedPieceValue > highestValueCapture)
-            {
-                moveToPlay = move;
-                highestValueCapture = capturedPieceValue;
+                best_eval = move_eval;
             }
         }
 
         return moveToPlay;
-    }
-
-
-    bool MoveIsCheckmate(Board board, Move move)
-    {
-        board.MakeMove(move);
-        bool isMate = board.IsInCheckmate();
-        board.UndoMove(move);
-        return isMate;
     }
 }
