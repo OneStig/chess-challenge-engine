@@ -210,6 +210,10 @@ public class MyBot : IChessBot
     // }
 
     public int Negamax(Board board, int depth) {
+        if (board.IsInCheckmate()) {
+            return -100000;
+        }
+
         if (depth == 0) {
             return Eval(board);
         }
