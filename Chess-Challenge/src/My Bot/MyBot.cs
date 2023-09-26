@@ -194,7 +194,7 @@ public class MyBot : IChessBot
                         break;
                 }
 
-                sum += p.IsWhite ? this_value : this_value * -1;
+                sum += board.IsWhiteToMove == p.IsWhite ? this_value : this_value * -1;
 
                 // Console.WriteLine("piece " + p.ToString() + " " + p.Square.ToString() + " " + (p.IsWhite ? this_value : this_value * -1));
             }
@@ -209,23 +209,37 @@ public class MyBot : IChessBot
     //     }
     // }
 
-    
+    public int Negamax(Board board, int depth) {
+        if (depth == 0) {
+            return Eval(board);
+        }
+
+        int bestValue = int.MinValue;
+
+        foreach (Move move in board.GetLegalMoves()) {
+            board.MakeMove(move);
+            int value = -Negamax(board, depth - 1);
+            board.UndoMove(move);
+
+            bestValue = Math.Max(bestValue, value);
+        }
+
+        return bestValue;
+    }
 
     public Move Think(Board board, Timer timer)
     {
-        Console.WriteLine("Current Board: " + Eval(board));
+        // Console.WriteLine("Current Board: " + Eval(board));
         Move[] allMoves = board.GetLegalMoves();
 
-        // Pick a random move to play if nothing better is found
-        Random rng = new();
-        Move moveToPlay = allMoves[rng.Next(allMoves.Length)];
+        Move moveToPlay = allMoves[0];
 
-        int best_eval = -100000;
+        int best_eval = int.MinValue;
 
         foreach (Move move in allMoves)
         {
             board.MakeMove(move);
-            int move_eval = Eval(board) * (board.IsWhiteToMove ? -1 : 1);
+            int move_eval = -Negamax(board, 3);
             board.UndoMove(move);
 
             Console.WriteLine(move.ToString() + " " + move_eval);
@@ -239,6 +253,16 @@ public class MyBot : IChessBot
         }
 
         Console.WriteLine("Selected move: " + moveToPlay.ToString() + " " + best_eval);
+
+        if (best_eval > 1000) {
+            value_mg = value_eg;
+            mg_pawn_table = eg_pawn_table;
+            mg_knight_table = eg_knight_table;
+            mg_bishop_table = eg_bishop_table;
+            mg_rook_table = eg_rook_table;
+            mg_queen_table = eg_queen_table;
+            mg_king_table = eg_king_table;
+        }
 
         return moveToPlay;
     }
