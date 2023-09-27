@@ -140,6 +140,8 @@ public class MyBot : IChessBot
         -53, -34, -21, -11, -28, -14, -24, -43
     };
 
+    int depth = 4;
+
     struct Transposition {
         public ulong zobrist;
         public Move move;
@@ -209,7 +211,7 @@ public class MyBot : IChessBot
     //     }
     // }
 
-    public int Negamax(Board board, int depth) {
+    public int Negamax(Board board, int depth, int alpha, int beta) {
         if (board.IsInCheckmate()) {
             return -100000;
         }
@@ -222,10 +224,15 @@ public class MyBot : IChessBot
 
         foreach (Move move in board.GetLegalMoves()) {
             board.MakeMove(move);
-            int value = -Negamax(board, depth - 1);
+            int value = -Negamax(board, depth - 1, -beta, -alpha);
             board.UndoMove(move);
 
             bestValue = Math.Max(bestValue, value);
+            alpha = Math.Max(alpha, value);
+
+            if (alpha >= beta) {
+                break;
+            }
         }
 
         return bestValue;
@@ -243,10 +250,10 @@ public class MyBot : IChessBot
         foreach (Move move in allMoves)
         {
             board.MakeMove(move);
-            int move_eval = -Negamax(board, 3);
+            int move_eval = -Negamax(board, depth, int.MinValue, int.MaxValue);
             board.UndoMove(move);
 
-            Console.WriteLine(move.ToString() + " " + move_eval);
+            // Console.WriteLine(move.ToString() + " " + move_eval);
 
 
             if (move_eval > best_eval)
@@ -256,9 +263,10 @@ public class MyBot : IChessBot
             }
         }
 
-        Console.WriteLine("Selected move: " + moveToPlay.ToString() + " " + best_eval);
-
-        if (best_eval > 1000) {
+        // Console.WriteLine("Selected move: " + moveToPlay.ToString() + " " + best_eval);
+        if (board.GameMoveHistory.Length > 50) {
+            Console.WriteLine("endgame reached");
+            depth = 5;
             value_mg = value_eg;
             mg_pawn_table = eg_pawn_table;
             mg_knight_table = eg_knight_table;
