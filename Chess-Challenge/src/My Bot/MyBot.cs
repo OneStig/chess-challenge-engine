@@ -1,5 +1,7 @@
 ﻿using ChessChallenge.API;
 using System;
+using System.Linq;
+using System.Collections;
 
 public class MyBot : IChessBot
 {
@@ -7,9 +9,9 @@ public class MyBot : IChessBot
     int[] value_eg = { 94, 281, 297, 512, 936, 12000 };
 
     // value of pieces by game phase
-    int[] value_gp = {0, 1, 1, 2, 4, 0};
+    int[] value_gp = { 0, 1, 1, 2, 4, 0 };
 
-    int[,] mg_table = {
+    short[,] mg_table = {
         { // mg pawn table
             0,   0,   0,   0,   0,   0,  0,   0,
             98, 134,  61,  95,  68, 126, 34, -11,
@@ -71,7 +73,7 @@ public class MyBot : IChessBot
             -15,  36,  12, -54,   8, -28,  24,  14
         }
     };
-    int[,] eg_table = {
+    short[,] eg_table = {
         { // eg pawn table
             0,   0,   0,   0,   0,   0,   0,   0,
             178, 173, 158, 134, 147, 132, 165, 187,
@@ -134,14 +136,54 @@ public class MyBot : IChessBot
         }
     };
 
+    public static long Encode(short first, short second, short third, short fourth)
+    {
+        first += 1000;
+        second += 1000;
+        third += 1000;
+        fourth += 1000;
+
+        long result = 0L;
+
+        result |= (long)first << 48;      // Move first to the highest 16 bits
+        result |= (long)second << 32;     // Move second to the next 16 bits
+        result |= (long)third << 16;      // Move third to the next 16 bits
+        result |= (long)fourth & 0xFFFFL; // Keep fourth in the lowest 16 bits
+
+        return result;
+    }
+
+    public static short DecodeFirst(long encoded)
+    {
+        return (short)((encoded >> 48) - 1000);
+    }
+
+    public static short DecodeSecond(long encoded)
+    {
+        return (short)(((encoded >> 32) & 0xFFFF) - 1000);
+    }
+
+    public static short DecodeThird(long encoded)
+    {
+        return (short)(((encoded >> 16) & 0xFFFF) - 1000);
+    }
+
+    public static short DecodeFourth(long encoded)
+    {
+        return (short)((encoded & 0xFFFF) - 1000);
+    }
+
+
     int depth = 3;
 
-    struct Transposition {
+    struct Transposition
+    {
         public ulong zobrist;
         public Move move;
         public int eval;
 
-        public Transposition(ulong _zobrist, Move _move, int _eval) {
+        public Transposition(ulong _zobrist, Move _move, int _eval)
+        {
             zobrist = _zobrist;
             move = _move;
             eval = _eval;
@@ -151,14 +193,16 @@ public class MyBot : IChessBot
     const int TTotal = (1 << 20);
     Transposition[] tt = new Transposition[TTotal];
 
-    int tb_ind(int n) {
-        return (7 - n/8) * 8 + (n % 8);
+    int tb_ind(int n)
+    {
+        return (7 - n / 8) * 8 + (n % 8);
     }
 
     int Eval(Board board)
     {
         Transposition cur = tt[board.ZobristKey % TTotal];
-        if (cur.zobrist == board.ZobristKey) {
+        if (cur.zobrist == board.ZobristKey)
+        {
             return cur.eval;
         }
 
@@ -166,8 +210,10 @@ public class MyBot : IChessBot
 
         PieceList[] all_pl = board.GetAllPieceLists();
 
-        foreach (PieceList pl in all_pl) {
-            for (int i = 0; i < pl.Count; i++) {
+        foreach (PieceList pl in all_pl)
+        {
+            for (int i = 0; i < pl.Count; i++)
+            {
                 Piece p = pl.GetPiece(i);
 
                 int p_type_ind = (int)p.PieceType - 1;
@@ -195,18 +241,22 @@ public class MyBot : IChessBot
         return sum;
     }
 
-    public int Negamax(Board board, int depth, int alpha, int beta) {
-        if (board.IsInCheckmate()) {
+    public int Negamax(Board board, int depth, int alpha, int beta)
+    {
+        if (board.IsInCheckmate())
+        {
             return -100000;
         }
 
-        if (depth == 0) {
+        if (depth == 0)
+        {
             return Eval(board);
         }
 
         int bestValue = int.MinValue;
 
-        foreach (Move move in board.GetLegalMoves()) {
+        foreach (Move move in board.GetLegalMoves())
+        {
             board.MakeMove(move);
             int value = -Negamax(board, depth - 1, -beta, -alpha);
             board.UndoMove(move);
@@ -214,7 +264,8 @@ public class MyBot : IChessBot
             bestValue = Math.Max(bestValue, value);
             alpha = Math.Max(alpha, value);
 
-            if (alpha >= beta) {
+            if (alpha >= beta)
+            {
                 break;
             }
         }
@@ -224,6 +275,24 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
+        ArrayList encoded = new ArrayList();
+
+        for (int i = 0; i < 6; i++) {
+            for (int j = 0; j < 64; j++) {
+                if (j % 4 == 0) {
+                    encoded.Add(Encode(mg_table[i, j], mg_table[i, j + 1], mg_table[i, j + 2], mg_table[i, j + 3]));
+                }
+            }
+        }
+        
+        string result = string.Join(", ", encoded.Cast<long>());
+        Console.WriteLine(result);
+
+        foreach (long l in encoded) {
+            Console.WriteLine(DecodeFirst(l) + " " + DecodeSecond(l) + " " +
+                                DecodeThird(l) + " " + DecodeFourth(l) + " ");
+        }
+
         // Console.WriteLine("Current Board: " + Eval(board));
         Move[] allMoves = board.GetLegalMoves();
 
