@@ -1,6 +1,5 @@
 ﻿using ChessChallenge.API;
 using System;
-using System.Linq;
 using System.Collections;
 
 public class MyBot : IChessBot
@@ -20,7 +19,7 @@ public class MyBot : IChessBot
 
     short table_query(int table, int piece, int index) {
         int ind = 384 * table + piece * 64 + index;
-        return Decode(raw_mgeg_table[ind / 4], ind % 4);
+        return Decode(raw_mgeg_table[ind / 4], ind % 4 + 1);
     }
 
     int depth = 3;
@@ -79,9 +78,9 @@ public class MyBot : IChessBot
             }
         }
 
-        gamePhase = Math.Min(gamePhase, 24);
+        gamePhase = Math.Min(gamePhase, 12);
 
-        int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24;
+        int sum = (mg_sum * gamePhase + eg_sum * (12 - gamePhase)) / 12;
 
         cur = new Transposition(board.ZobristKey, Move.NullMove, sum);
 
