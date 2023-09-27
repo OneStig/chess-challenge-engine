@@ -3,23 +3,13 @@ using System;
 
 public class MyBot : IChessBot
 {
-    int[] value_mg = { 0, 82, 237, 365, 477, 1025, 12000 };
-    int[] value_eg = { 0, 94, 281, 297, 512, 936, 12000 };
+    int[] value_mg = { 82, 237, 365, 477, 1025, 12000 };
+    int[] value_eg = { 94, 281, 297, 512, 936, 12000 };
 
     // value of pieces by game phase
-    int[] value_gp = {0, 0, 1, 1, 2, 4, 0};
+    int[] value_gp = {0, 1, 1, 2, 4, 0};
 
     int[,] mg_table = {
-        { // mg none table
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0
-        },
         { // mg pawn table
             0,   0,   0,   0,   0,   0,  0,   0,
             98, 134,  61,  95,  68, 126, 34, -11,
@@ -82,16 +72,6 @@ public class MyBot : IChessBot
         }
     };
     int[,] eg_table = {
-        { // eg none table
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0,
-            0,   0,   0,   0,   0,   0,   0,   0
-        },
         { // eg pawn table
             0,   0,   0,   0,   0,   0,   0,   0,
             178, 173, 158, 134, 147, 132, 165, 187,
@@ -154,7 +134,7 @@ public class MyBot : IChessBot
         }
     };
 
-    int depth = 4;
+    int depth = 3;
 
     struct Transposition {
         public ulong zobrist;
@@ -190,31 +170,30 @@ public class MyBot : IChessBot
             for (int i = 0; i < pl.Count; i++) {
                 Piece p = pl.GetPiece(i);
 
-                gamePhase += value_gp[(int)p.PieceType];
+                int p_type_ind = (int)p.PieceType - 1;
+
+                gamePhase += value_gp[p_type_ind];
 
                 // if white flip board, otherwise dont (because arrays listed in POV of white)
                 int ind = p.IsWhite ? tb_ind(p.Square.Index) : p.Square.Index;
 
-                mg_sum += mg_table[(int)p.PieceType, ind] + value_mg[(int)p.PieceType] * (board.IsWhiteToMove == p.IsWhite ? 1 : -1);
-                eg_sum += mg_table[(int)p.PieceType, ind] + value_mg[(int)p.PieceType] * (board.IsWhiteToMove == p.IsWhite ? 1 : -1);
+                int neg = board.IsWhiteToMove == p.IsWhite ? 1 : -1;
+
+                mg_sum += mg_table[p_type_ind, ind] + value_mg[p_type_ind] * neg;
+                eg_sum += mg_table[p_type_ind, ind] + value_mg[p_type_ind] * neg;
 
                 // Console.WriteLine("piece " + p.ToString() + " " + p.Square.ToString() + " " + (p.IsWhite ? this_value : this_value * -1));
             }
         }
 
         gamePhase = Math.Min(gamePhase, 24);
+
         int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24;
 
         cur = new Transposition(board.ZobristKey, Move.NullMove, sum);
 
         return sum;
     }
-
-    // Move negaMax(int depth, Board board) {
-    //     if (depth == 0) {
-    //         return eval(board);
-    //     }
-    // }
 
     public int Negamax(Board board, int depth, int alpha, int beta) {
         if (board.IsInCheckmate()) {
@@ -259,7 +238,6 @@ public class MyBot : IChessBot
             board.UndoMove(move);
 
             // Console.WriteLine(move.ToString() + " " + move_eval);
-
 
             if (move_eval > best_eval)
             {
