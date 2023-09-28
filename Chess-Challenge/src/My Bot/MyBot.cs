@@ -14,14 +14,9 @@ public class MyBot : IChessBot
 
     Move best_move;
 
-    short Decode(long encoded, int position)
-    {
-        return (short)((encoded >> (4 - position) * 16 & 0xFFFF) - 1000);
-    }
-
     short table_query(int table, int piece, int index) {
         int ind = 384 * table + piece * 64 + index;
-        return Decode(raw_mgeg_table[ind / 4], ind % 4 + 1);
+        return (short)((raw_mgeg_table[ind / 4] >> (3 - ind % 4) * 16 & 0xFFFF) - 1000);
     }
 
     const int max_depth = 3;
@@ -43,8 +38,7 @@ public class MyBot : IChessBot
 
     const int TTotal = (1 << 20);
     Transposition[] tt = new Transposition[TTotal];
-
-
+    
     int tb_ind(int n)
     {
         return (7 - n / 8) * 8 + (n % 8);
@@ -64,11 +58,11 @@ public class MyBot : IChessBot
 
         foreach (PieceList pl in all_pl)
         {
+            int p_type_ind = (int)pl.TypeOfPieceInList - 1;
+
             for (int i = 0; i < pl.Count; i++)
             {
                 Piece p = pl.GetPiece(i);
-
-                int p_type_ind = (int)p.PieceType - 1;
 
                 gamePhase += value_gp[p_type_ind];
 
@@ -151,11 +145,8 @@ public class MyBot : IChessBot
 
         Move moveToPlay = Move.NullMove;
 
-        int alpha = -10000, beta = 10000;
+        Negamax(board, max_depth, -10000, 10000);
 
-        Console.WriteLine("eval: " + Eval(board));
-        Negamax(board, max_depth, alpha, beta);
-
-        return best_move;
+        return best_move == Move.NullMove ? board.GetLegalMoves()[0] : best_move;
     }
 }
