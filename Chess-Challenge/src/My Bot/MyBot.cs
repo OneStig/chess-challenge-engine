@@ -1,4 +1,5 @@
 ﻿using ChessChallenge.API;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections;
 
@@ -81,7 +82,7 @@ public class MyBot : IChessBot
         gamePhase = Math.Min(gamePhase, 12);
 
         int sum = (mg_sum * gamePhase + eg_sum * (12 - gamePhase)) / 12;
-
+        // int sum = mg_sum;
         cur = new Transposition(board.ZobristKey, Move.NullMove, sum);
 
         return sum;
@@ -96,7 +97,7 @@ public class MyBot : IChessBot
 
         if (depth == 0)
         {
-            return Eval(board);
+            return Quiescence(board, alpha, beta);
         }
 
         int bestValue = int.MinValue;
@@ -119,6 +120,34 @@ public class MyBot : IChessBot
         return bestValue;
     }
 
+    public int Quiescence(Board board, int alpha, int beta) {
+        int static_eval = Eval(board);
+
+        if (static_eval >= beta) {
+            return beta;
+        }
+
+        if (alpha < static_eval) {
+            alpha = static_eval;
+        }
+        
+        foreach (Move move in board.GetLegalMoves(true)) {
+            board.MakeMove(move);
+            int value = -Quiescence(board, -beta, -alpha);
+            board.UndoMove(move);
+
+            if (value >= beta) {
+                return beta;
+            }
+                
+            if (value > alpha) {
+                alpha = value;
+            }
+        }
+
+        return alpha;
+    }
+
     public Move Think(Board board, Timer timer)
     {
         Move[] allMoves = board.GetLegalMoves();
@@ -132,6 +161,8 @@ public class MyBot : IChessBot
             board.MakeMove(move);
             int move_eval = -Negamax(board, depth, int.MinValue, int.MaxValue);
             board.UndoMove(move);
+
+            Console.WriteLine(move + " " + move_eval);
 
             if (move_eval > best_eval)
             {
