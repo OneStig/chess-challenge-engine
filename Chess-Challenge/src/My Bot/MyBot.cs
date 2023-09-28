@@ -74,8 +74,8 @@ public class MyBot : IChessBot
 
                 int neg = board.IsWhiteToMove == p.IsWhite ? 1 : -1;
 
-                mg_sum += table_query(0, p_type_ind, ind) + value_mg[p_type_ind] * neg;
-                eg_sum += table_query(1, p_type_ind, ind) + value_eg[p_type_ind] * neg;
+                mg_sum += (table_query(0, p_type_ind, ind) + value_mg[p_type_ind]) * neg;
+                eg_sum += (table_query(1, p_type_ind, ind) + value_eg[p_type_ind]) * neg;
             }
         }
 
@@ -97,7 +97,8 @@ public class MyBot : IChessBot
 
         if (depth == 0)
         {
-            return Quiescence(board, alpha, beta);
+            // return Quiescence(board, alpha, beta);
+            return Eval(board);
         }
 
         int bestValue = int.MinValue;
@@ -162,7 +163,7 @@ public class MyBot : IChessBot
             int move_eval = -Negamax(board, depth, int.MinValue, int.MaxValue);
             board.UndoMove(move);
 
-            Console.WriteLine(move + " " + move_eval);
+            // Console.WriteLine(move + " " + move_eval);
 
             if (move_eval > best_eval)
             {
