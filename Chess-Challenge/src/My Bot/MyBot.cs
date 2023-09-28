@@ -1,5 +1,4 @@
 ﻿using ChessChallenge.API;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections;
 
@@ -13,6 +12,8 @@ public class MyBot : IChessBot
     // value of pieces by game phase
     int[] value_gp = { 0, 1, 1, 2, 4, 0 };
 
+    Move best_move;
+
     short Decode(long encoded, int position)
     {
         return (short)((encoded >> (4 - position) * 16 & 0xFFFF) - 1000);
@@ -23,8 +24,9 @@ public class MyBot : IChessBot
         return Decode(raw_mgeg_table[ind / 4], ind % 4 + 1);
     }
 
-    int depth = 3;
+    const int max_depth = 3;
 
+    // does not store depth yet just raw evaluation
     struct Transposition
     {
         public ulong zobrist;
@@ -41,6 +43,7 @@ public class MyBot : IChessBot
 
     const int TTotal = (1 << 20);
     Transposition[] tt = new Transposition[TTotal];
+
 
     int tb_ind(int n)
     {
@@ -79,9 +82,9 @@ public class MyBot : IChessBot
             }
         }
 
-        gamePhase = Math.Min(gamePhase, 12);
+        gamePhase = Math.Min(gamePhase, 24);
 
-        int sum = (mg_sum * gamePhase + eg_sum * (12 - gamePhase)) / 12;
+        int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24;
         // int sum = mg_sum;
         cur = new Transposition(board.ZobristKey, Move.NullMove, sum);
 
@@ -92,24 +95,45 @@ public class MyBot : IChessBot
     {
         if (board.IsInCheckmate())
         {
-            return -100000;
-        }
-
-        if (depth == 0)
-        {
-            // return Quiescence(board, alpha, beta);
-            return Eval(board);
+            return -10000;
         }
 
         int bestValue = int.MinValue;
+        Move[] consider_moves;
 
-        foreach (Move move in board.GetLegalMoves())
+        if (depth <= 0)
+        {
+            consider_moves = board.GetLegalMoves(true);
+
+            bestValue = Eval(board);
+
+            if (bestValue >= beta) {
+                return bestValue;
+            }
+
+            if (alpha < bestValue) {
+                alpha = bestValue;
+            }
+        }
+        else {
+            consider_moves = board.GetLegalMoves();
+        }
+
+        foreach (Move move in consider_moves)
         {
             board.MakeMove(move);
             int value = -Negamax(board, depth - 1, -beta, -alpha);
             board.UndoMove(move);
 
-            bestValue = Math.Max(bestValue, value);
+
+            if (bestValue < value) {
+                bestValue = value;
+
+                if (depth == max_depth) {
+                    best_move = move;
+                }
+            }
+
             alpha = Math.Max(alpha, value);
 
             if (alpha >= beta)
@@ -121,57 +145,17 @@ public class MyBot : IChessBot
         return bestValue;
     }
 
-    public int Quiescence(Board board, int alpha, int beta) {
-        int static_eval = Eval(board);
-
-        if (static_eval >= beta) {
-            return beta;
-        }
-
-        if (alpha < static_eval) {
-            alpha = static_eval;
-        }
-        
-        foreach (Move move in board.GetLegalMoves(true)) {
-            board.MakeMove(move);
-            int value = -Quiescence(board, -beta, -alpha);
-            board.UndoMove(move);
-
-            if (value >= beta) {
-                return beta;
-            }
-                
-            if (value > alpha) {
-                alpha = value;
-            }
-        }
-
-        return alpha;
-    }
-
     public Move Think(Board board, Timer timer)
     {
-        Move[] allMoves = board.GetLegalMoves();
+        // Move[] allMoves = board.GetLegalMoves();
 
-        Move moveToPlay = allMoves[0];
+        Move moveToPlay = Move.NullMove;
 
-        int best_eval = int.MinValue;
+        int alpha = -10000, beta = 10000;
 
-        foreach (Move move in allMoves)
-        {
-            board.MakeMove(move);
-            int move_eval = -Negamax(board, depth, int.MinValue, int.MaxValue);
-            board.UndoMove(move);
+        Console.WriteLine("eval: " + Eval(board));
+        Negamax(board, max_depth, alpha, beta);
 
-            // Console.WriteLine(move + " " + move_eval);
-
-            if (move_eval > best_eval)
-            {
-                moveToPlay = move;
-                best_eval = move_eval;
-            }
-        }
-
-        return moveToPlay;
+        return best_move;
     }
 }
