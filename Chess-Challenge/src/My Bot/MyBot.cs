@@ -15,7 +15,10 @@ public class MyBot : IChessBot
 
     Move best_move;
 
-    int max_depth = 3;
+    const int max_depth = 3;
+
+    const int table_size = 1 << 20;
+    (ulong, int, int, int, Move)[] tt = new (ulong, int, int, int, Move)[table_size];
 
     public MyBot()
     {
@@ -71,11 +74,11 @@ public class MyBot : IChessBot
         return sum;
     }
 
-    public int Negamax(Board board, int depth, int alpha, int beta, Timer timer)
+    public int Negamax(Board board, int depth, int alpha, int beta, Timer timer, int ply)
     {
         if (board.IsInCheckmate()) return -10000;
 
-        if (depth != max_depth && board.IsRepeatedPosition())
+        if (ply > 0 && board.IsRepeatedPosition())
         {
             return 0;
         }
@@ -107,7 +110,7 @@ public class MyBot : IChessBot
         foreach (Move move in consider_moves)
         {
             board.MakeMove(move);
-            int value = -Negamax(board, depth - 1, -beta, -alpha, timer);
+            int value = -Negamax(board, depth - 1, -beta, -alpha, timer, ply + 1);
             board.UndoMove(move);
 
 
@@ -115,7 +118,7 @@ public class MyBot : IChessBot
             {
                 bestValue = value;
 
-                if (depth == max_depth)
+                if (ply == 0)
                 {
                     best_move = move;
                 }
@@ -134,7 +137,14 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        Negamax(board, max_depth, -10000, 10000, timer);
+        // for (int d = 1;; d++) {
+        //     Negamax(board, d, -10000, 10000, timer, 0);
+
+        //     if (d > max_depth) {
+        //         break;
+        //     }
+        // }
+        Negamax(board, max_depth, -10000, 10000, timer, 0);
 
         return best_move;
     }
