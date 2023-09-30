@@ -53,7 +53,7 @@ namespace ChessChallenge.Application
 				-36, -26, -12,  -1,  9, -7,   6, -23,
 				-45, -25, -16, -17,  3,  0,  -5, -33,
 				-44, -16, -20,  -9, -1, 11,  -6, -71,
-				-19, -13,   1,  17, 16,  7, -37, -26
+				-19, -13,   1,  17, 16,  7, -37, -26,
 
 				-28,   0,  29,  12,  59,  44,  43,  45,
 				-24, -39,  -5,   1, -16,  57,  28,  54,
@@ -62,7 +62,7 @@ namespace ChessChallenge.Application
 				-9, -26,  -9, -10,  -2,  -4,   3,  -3,
 				-14,   2, -11,  -2,  -5,   2,  14,   5,
 				-35,  -8,  11,   2,   8,  15,  -3,   1,
-				-1, -18,  -9,  10, -15, -25, -31, -50
+				-1, -18,  -9,  10, -15, -25, -31, -50,
 
 				-65,  23,  16, -15, -56, -34,   2,  13,
 				29,  -1, -20,  -7,  -8,  -4, -38, -29,
@@ -73,7 +73,7 @@ namespace ChessChallenge.Application
 				1,   7,  -8, -64, -43, -16,   9,   8,
 				-15,  36,  12, -54,   8, -28,  24,  14,
 
-				0,   0,   0,   0,   0,   0,  0,   0
+				0,   0,   0,   0,   0,   0
 
 		};
 
@@ -132,7 +132,7 @@ namespace ChessChallenge.Application
 				-27, -11,   4,  13,  14,   4,  -5, -17,
 				-53, -34, -21, -11, -28, -14, -24, -43,
 
-				0,   0,   0,   0,   0,   0,  0,   0 // extra 8 0s to make 382 -> 390, since 64 * 6 does not fit perfectly
+				0,   0,   0,   0,   0,   0,  // extra 6 0s to make 384 -> 390, since 64 * 6 does not fit perfectly
 		};
 
 		public static decimal Encode(bool[] signs, byte[] values)
@@ -200,15 +200,15 @@ namespace ChessChallenge.Application
 		{
 			decimal[] output = new decimal[mg_table.Length / 10];
 
-			Console.Write("{");
+			Console.Write(mg_table.Length + "{");
 
 			for (int i = 0; i < mg_table.Length / 10; i++) {
 				byte[] cur_vals = new byte[10];
 				bool[] cur_parity = new bool[10];
 
 				for (int j = 0; j < 10; j++) {
-					cur_vals[j] = (byte)Math.Abs(eg_table[i * 10 + j]);
-					cur_parity[j] = eg_table[i * 10 + j] < 0;
+					cur_vals[j] = (byte)Math.Abs(mg_table[i * 10 + j]);
+					cur_parity[j] = mg_table[i * 10 + j] < 0;
 				}
 
 				output[i] = Encode(cur_parity, cur_vals);
