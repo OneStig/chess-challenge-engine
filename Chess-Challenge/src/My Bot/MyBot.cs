@@ -17,52 +17,20 @@ public class MyBot : IChessBot
 
     Move best_move;
 
-    public static short Decode(decimal dInput, int index)
-    {
-        BigInteger encodedValue = BigInteger.Parse(dInput.ToString());
-
-        int shiftAmount = 9 * index;
-
-        BigInteger segment = (encodedValue >> shiftAmount) & 0x1FF;
-
-        bool sign = (segment & (1 << 8)) != 0;
-        byte byteValue = (byte)(segment & 0xFF);
-
-        return (short)(byteValue * (sign ? -1 : 1));
-    }
+    int max_depth = 3;
 
     short table_query(int table, int piece, int index)
     {
         int ind = 390 * table + piece * 64 + index;
-        return Decode(raw_mgeg_table[ind / 10], ind % 10);
-    }
+        BigInteger segment = (BigInteger.Parse(raw_mgeg_table[ind / 10].ToString()) >> 9 * (ind % 10)) & 0x1FF;
 
-    int max_depth = 3;
-
-    // does not store depth yet just raw evaluation
-    struct Transposition
-    {
-        public ulong zobrist;
-        public Move move;
-        public int eval, depth, bound;
-
-        public Transposition(ulong z, Move m, int e, int d, int b)
-        {
-            zobrist = z;
-            move = m;
-            eval = e;
-            depth = d;
-            bound = b;
-        }
+        return (short)((byte)(segment & 0xFF) * ((segment & (1 << 8)) != 0 ? -1 : 1));
     }
 
     public MyBot()
     {
 
     }
-
-    // const int TTotal = 
-    // Transposition[] tt = new Transposition[TTotal];
 
     int tb_ind(int n)
     {
@@ -71,11 +39,6 @@ public class MyBot : IChessBot
 
     int Eval(Board board)
     {
-        // Transposition cur = tt[board.ZobristKey % TTotal];
-        // if (cur.zobrist == board.ZobristKey)
-        // {
-        //     return cur.eval;
-        // }
 
         int gamePhase = 0, mg_sum = 0, eg_sum = 0;
 
@@ -104,8 +67,6 @@ public class MyBot : IChessBot
         gamePhase = Math.Min(gamePhase, 24);
 
         int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24;
-        // int sum = mg_sum;
-        // cur = new Transposition(board.ZobristKey, Move.NullMove, sum);
 
         return sum;
     }
