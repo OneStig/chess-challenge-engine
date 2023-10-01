@@ -6,6 +6,12 @@ using System.Numerics;
 public class MyBot : IChessBot
 {
     // todo: mvv lva, iterative deepening + transposition table
+    // https://www.chessprogramming.org/King_Safety
+
+    // TELEMETRY //
+    // int nodes;
+    // ========= //
+
     int[,,] pst = new int[2, 6, 64];
 
     int[] value_mg = { 82, 237, 365, 477, 1025, 0 };
@@ -16,10 +22,13 @@ public class MyBot : IChessBot
 
     Move best_move;
 
-    const int max_depth = 4;
+    const int max_depth = 40;
 
-    const int table_size = 1 << 20;
-    (ulong, int, int, int, Move)[] tt = new (ulong, int, int, int, Move)[table_size];
+    // size of transposition table
+    const int tpt_size = 1 << 20;
+
+    // zobrist key, depth, eval, bound, best move found 
+    (ulong, int, int, int, Move)[] tpt = new (ulong, int, int, int, Move)[tpt_size];
 
     public MyBot()
     {
@@ -75,27 +84,41 @@ public class MyBot : IChessBot
         return sum;
     }
 
-    public int Negamax(Board board, int depth, int alpha, int beta, Timer timer, int ply)
+    int Negamax(Board board, int depth, int alpha, int beta, Timer timer, int ply)
     {
+        // nodes++;
+
         if (board.IsInCheckmate()) return -10000;
         if (board.IsInStalemate()) return 0;
 
-        if (ply > 0 && board.IsRepeatedPosition())
-        {
-            return 0;
-        }
+        if (ply > 0 && board.IsRepeatedPosition()) return 0;
 
         ulong bkey = board.ZobristKey;
+        ulong bkey_mod = bkey % tpt_size;
+
         int bestValue = int.MinValue;
 
         bool quiescence = depth <= 0;
+
+        var cur_tpt = tpt[bkey_mod];
+
+        // 1. ensure not on the root node
+        // 2. ensure not a collision with different key
+        // 3. ensure stored info calculated deeper
+        // 4. check if alternative better score was reached
+        if (ply > 0 && cur_tpt.Item1 == bkey && cur_tpt.Item2 >= depth &&
+            (cur_tpt.Item4 == 3 || 
+             cur_tpt.Item4 == 2 && cur_tpt.Item3 >= beta ||
+             cur_tpt.Item4 == 1 && cur_tpt.Item3 <= alpha)) {
+                return cur_tpt.Item3;
+             }
 
         if (quiescence)
         {
             bestValue = Eval(board);
 
             // if (bestValue >= beta || timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 30)
-            if (bestValue >= beta)
+            if (bestValue >= beta || timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 40)
             {
                 return bestValue;
             }
@@ -106,13 +129,24 @@ public class MyBot : IChessBot
             }
         }
 
+        int f_alpha = alpha;
+
         Move[] consider_moves = board.GetLegalMoves(quiescence);
         int[] priority = new int[consider_moves.Length];
 
         for (int i = 0; i < consider_moves.Length; i++) {
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 40) {
+                return 10000;
+            }
+            
             Move cur = consider_moves[i];
 
-            priority[i] = 10000;
+            priority[i] = 1<<10;
+
+            // start search with last found best
+            if (consider_moves[i] == cur_tpt.Item5 && cur_tpt.Item1 == bkey) {
+                priority[i] = -10000;
+            }
 
             if (consider_moves[i].IsCapture) {
                 // maybe consider adding value of check later?
@@ -127,6 +161,8 @@ public class MyBot : IChessBot
 
         Array.Sort(priority, consider_moves);
 
+        Move local_best = Move.NullMove;
+
         foreach (Move move in consider_moves)
         {
             board.MakeMove(move);
@@ -136,6 +172,7 @@ public class MyBot : IChessBot
             if (bestValue < value)
             {
                 bestValue = value;
+                local_best = move;
 
                 if (ply == 0)
                 {
@@ -151,15 +188,19 @@ public class MyBot : IChessBot
             }
         }
 
+        tpt[bkey_mod] = (bkey, depth, bestValue, bestValue >= beta ? 2 : bestValue > f_alpha ? 3 : 1, local_best);
+
         return bestValue;
     }
 
     public Move Think(Board board, Timer timer)
     {
-        // for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 30; d++) {
-        //     Negamax(board, d, -10000, 10000, timer, 0);
-        // }
-        Negamax(board, max_depth, -10000, 10000, timer, 0);
+        for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 40; d++) {
+            // nodes = 0;
+            int eval = Negamax(board, d, -10000, 10000, timer, 0);
+
+            // Console.WriteLine($"Depth: {d}; {best_move}: {eval} ; Nodes searched: {nodes} @ {timer.MillisecondsElapsedThisTurn}ms");
+        }
 
         return best_move;
     }
