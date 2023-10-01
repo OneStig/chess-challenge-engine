@@ -9,7 +9,7 @@ public class MyBot : IChessBot
     // https://www.chessprogramming.org/King_Safety
 
     // TELEMETRY //
-    // int nodes;
+    int nodes;
     // ========= //
 
     int[,,] pst = new int[2, 6, 64];
@@ -22,7 +22,7 @@ public class MyBot : IChessBot
 
     Move best_move;
 
-    const int max_depth = 40;
+    const int max_depth = 60;
 
     // size of transposition table
     const int tpt_size = 1 << 20;
@@ -42,7 +42,7 @@ public class MyBot : IChessBot
         foreach (int phase in new[] {0, 1}) {
             // only go to 384, because last 6 are empty 0s off the board to make multiples of 10
             for (int i = 0; i < 384; i++) {
-                BigInteger segment = (BigInteger.Parse(raw_mgeg_table[i / 10].ToString()) >> 9 * (i % 10)) & 0x1FF;
+                BigInteger segment = (BigInteger.Parse(raw_mgeg_table[phase * 39 + i / 10].ToString()) >> 9 * (i % 10)) & 0x1FF;
 
                 pst[phase, i / 64, i % 64] = (short)((segment & 0xFF) * ((segment & (1 << 8)) != 0 ? -1 : 1));
             }
@@ -50,7 +50,6 @@ public class MyBot : IChessBot
     }
     int Eval(Board board)
     {
-
         int gamePhase = 0, mg_sum = 0, eg_sum = 0;
 
         PieceList[] all_pl = board.GetAllPieceLists();
@@ -72,13 +71,17 @@ public class MyBot : IChessBot
                 int neg = board.IsWhiteToMove == p.IsWhite ? 1 : -1;
 
                 mg_sum += (pst[0, p_type_ind, ind] + value_mg[p_type_ind]) * neg;
+
+                // Console.WriteLine($"mg {p_type_ind} {ind} {pst[0, p_type_ind, ind]}");
+
                 eg_sum += (pst[1, p_type_ind, ind] + value_eg[p_type_ind]) * neg;
+
+                // Console.WriteLine($"eg {p_type_ind} {ind} {pst[1, p_type_ind, ind]}");
             }
         }
 
         // in case of promotion resulting in > 24
         gamePhase = Math.Min(gamePhase, 24);
-
         int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24;
 
         return sum;
@@ -86,10 +89,10 @@ public class MyBot : IChessBot
 
     int Negamax(Board board, int depth, int alpha, int beta, Timer timer, int ply)
     {
-        // nodes++;
+        nodes++;
 
-        if (board.IsInCheckmate()) return -10000;
-        if (board.IsInStalemate()) return 0;
+        if (board.IsInCheckmate()) return -10000 + ply;
+        if (board.IsDraw()) return 0;
 
         if (ply > 0 && board.IsRepeatedPosition()) return 0;
 
@@ -112,21 +115,18 @@ public class MyBot : IChessBot
              cur_tpt.Item4 == 1 && cur_tpt.Item3 <= alpha)) {
                 return cur_tpt.Item3;
              }
+                
+
 
         if (quiescence)
         {
             bestValue = Eval(board);
 
-            // if (bestValue >= beta || timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 30)
-            if (bestValue >= beta || timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 40)
-            {
+            if (bestValue >= beta) {
                 return bestValue;
             }
-
-            if (alpha < bestValue)
-            {
-                alpha = bestValue;
-            }
+            
+            alpha = Math.Max(alpha, bestValue);
         }
 
         int f_alpha = alpha;
@@ -135,18 +135,13 @@ public class MyBot : IChessBot
         int[] priority = new int[consider_moves.Length];
 
         for (int i = 0; i < consider_moves.Length; i++) {
-            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 40) {
-                return 10000;
-            }
-            
             Move cur = consider_moves[i];
 
             priority[i] = 1<<10;
 
             // start search with last found best
-            if (consider_moves[i] == cur_tpt.Item5 && cur_tpt.Item1 == bkey) {
+            if (consider_moves[i] == cur_tpt.Item5 && cur_tpt.Item1 == bkey)
                 priority[i] = -10000;
-            }
 
             if (consider_moves[i].IsCapture) {
                 // maybe consider adding value of check later?
@@ -165,6 +160,10 @@ public class MyBot : IChessBot
 
         foreach (Move move in consider_moves)
         {
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 35) {
+                return bestValue;
+            }
+                
             board.MakeMove(move);
             int value = -Negamax(board, depth - 1, -beta, -alpha, timer, ply + 1);
             board.UndoMove(move);
@@ -173,11 +172,6 @@ public class MyBot : IChessBot
             {
                 bestValue = value;
                 local_best = move;
-
-                if (ply == 0)
-                {
-                    best_move = move;
-                }
             }
 
             alpha = Math.Max(alpha, value);
@@ -188,6 +182,11 @@ public class MyBot : IChessBot
             }
         }
 
+        if (ply == 0)
+        {
+            best_move = local_best;
+        }
+
         tpt[bkey_mod] = (bkey, depth, bestValue, bestValue >= beta ? 2 : bestValue > f_alpha ? 3 : 1, local_best);
 
         return bestValue;
@@ -195,11 +194,11 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 40; d++) {
-            // nodes = 0;
+        for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 35; d++) {
+            nodes = 0;
             int eval = Negamax(board, d, -10000, 10000, timer, 0);
 
-            // Console.WriteLine($"Depth: {d}; {best_move}: {eval} ; Nodes searched: {nodes} @ {timer.MillisecondsElapsedThisTurn}ms");
+            Console.WriteLine($"Depth: {d}; \x1b[31m{best_move}\x1b[0m: {eval} ; Nodes searched: {nodes} @ {timer.MillisecondsElapsedThisTurn}ms");
         }
 
         return best_move;
