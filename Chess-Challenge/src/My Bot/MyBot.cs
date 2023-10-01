@@ -9,23 +9,23 @@ public class MyBot : IChessBot
     // https://www.chessprogramming.org/King_Safety
 
     // TELEMETRY //
-    int nodes;
+    // int nodes;
     // ========= //
+
 
     int[,,] pst = new int[2, 6, 64];
 
-    int[] value_mg = { 82, 237, 365, 477, 1025, 0 };
-    int[] value_eg = { 94, 281, 297, 512, 936, 0 };
-
-    // value of pieces by game phase from PeSTO
-    int[] value_gp = { 0, 1, 1, 2, 4, 0 };
+    int[] value_mg = { 82, 237, 365, 477, 1025, 0 },
+          value_eg = { 94, 281, 297, 512, 936, 0 },
+          value_gp = { 0, 1, 1, 2, 4, 0 },
+          attack_units = { 1, 2, 2, 3, 5, 0 },
+          
+          bw = {0, 1};
 
     Move best_move;
 
-    const int max_depth = 60;
-
-    // size of transposition table
-    const int tpt_size = 1 << 20;
+     // max search depth, size of transposition table
+    const int max_depth = 60, tpt_size = 1 << 20;
 
     // zobrist key, depth, eval, bound, best move found 
     (ulong, int, int, int, Move)[] tpt = new (ulong, int, int, int, Move)[tpt_size];
@@ -39,7 +39,7 @@ public class MyBot : IChessBot
 
         // pre process the pst to reduce method calls to query the raw table
 
-        foreach (int phase in new[] {0, 1}) {
+        foreach (int phase in bw) {
             // only go to 384, because last 6 are empty 0s off the board to make multiples of 10
             for (int i = 0; i < 384; i++) {
                 BigInteger segment = (BigInteger.Parse(raw_mgeg_table[phase * 39 + i / 10].ToString()) >> 9 * (i % 10)) & 0x1FF;
@@ -50,46 +50,55 @@ public class MyBot : IChessBot
     }
     int Eval(Board board)
     {
-        int gamePhase = 0, mg_sum = 0, eg_sum = 0;
+        int tb_ind(int n) => (7 - n / 8) * 8 + (n % 8);
+        int safety_table(int ind) => (ind > 60 ? 500 : ind * ind / 8);
 
-        PieceList[] all_pl = board.GetAllPieceLists();
+        int gamePhase = 0, attack_unit_sum = 0, mg_sum = 0, eg_sum = 0;
 
-        foreach (PieceList pl in all_pl)
-        {
-            int p_type_ind = (int)pl.TypeOfPieceInList - 1;
+        foreach (int color in bw) {
+            bool is_white = color == 1;
+            ulong opp_king_squares = BitboardHelper.GetKingAttacks(board.GetKingSquare(!is_white));
 
-            for (int i = 0; i < pl.Count; i++)
-            {
-                Piece p = pl.GetPiece(i);
+            for (int i = 0; i < 6; i++) {
+                PieceList pl = board.GetPieceList((PieceType)(i + 1), is_white);
+                gamePhase += value_gp[i] * pl.Count;
 
-                gamePhase += value_gp[p_type_ind];
+                foreach (Piece p in pl) {
+                    int ind = is_white ? tb_ind(p.Square.Index) : p.Square.Index;
 
-                // if white flip board, otherwise dont (because arrays listed in POV of white)
-                int tb_ind(int n) => (7 - n / 8) * 8 + (n % 8);
-                int ind = p.IsWhite ? tb_ind(p.Square.Index) : p.Square.Index;
-
-                int neg = board.IsWhiteToMove == p.IsWhite ? 1 : -1;
-
-                mg_sum += (pst[0, p_type_ind, ind] + value_mg[p_type_ind]) * neg;
-
-                // Console.WriteLine($"mg {p_type_ind} {ind} {pst[0, p_type_ind, ind]}");
-
-                eg_sum += (pst[1, p_type_ind, ind] + value_eg[p_type_ind]) * neg;
-
-                // Console.WriteLine($"eg {p_type_ind} {ind} {pst[1, p_type_ind, ind]}");
+                    mg_sum += pst[0, i, ind] + value_mg[i];
+                    eg_sum += pst[1, i, ind] + value_eg[i];
+                    // Console.WriteLine($"mg {p_type_ind} {ind} {pst[0, p_type_ind, ind]}");
+                
+                    // king safety stuff
+                    
+                    attack_unit_sum += safety_table(attack_units[i] * 
+                        BitboardHelper.GetNumberOfSetBits(
+                            opp_king_squares & BitboardHelper.GetPieceAttacks(
+                                (PieceType)(i + 1),
+                                p.Square,
+                                board,
+                                is_white)
+                        )
+                    );
+                }
             }
+
+            attack_unit_sum *= -1;
+            mg_sum *= -1;
+            eg_sum *= -1;
         }
 
         // in case of promotion resulting in > 24
         gamePhase = Math.Min(gamePhase, 24);
-        int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24;
+        int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24 + attack_unit_sum;
 
-        return sum;
+        return board.IsWhiteToMove ? -sum : sum;
     }
 
     int Negamax(Board board, int depth, int alpha, int beta, Timer timer, int ply)
     {
-        nodes++;
+        // nodes++;
 
         if (board.IsInCheckmate()) return -10000 + ply;
         if (board.IsDraw()) return 0;
@@ -115,9 +124,7 @@ public class MyBot : IChessBot
              cur_tpt.Item4 == 1 && cur_tpt.Item3 <= alpha)) {
                 return cur_tpt.Item3;
              }
-                
-
-
+        
         if (quiescence)
         {
             bestValue = Eval(board);
@@ -194,11 +201,12 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
+        // Console.WriteLine("board: " + Eval(board));
         for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 35; d++) {
-            nodes = 0;
+            // nodes = 0;
             int eval = Negamax(board, d, -10000, 10000, timer, 0);
 
-            Console.WriteLine($"Depth: {d}; \x1b[31m{best_move}\x1b[0m: {eval} ; Nodes searched: {nodes} @ {timer.MillisecondsElapsedThisTurn}ms");
+            // Console.WriteLine($"Depth: {d}; \x1b[31m{best_move}\x1b[0m: {eval} ; Nodes searched: {nodes} @ {timer.MillisecondsElapsedThisTurn}ms");
         }
 
         return best_move;
