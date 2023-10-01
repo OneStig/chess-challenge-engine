@@ -5,6 +5,7 @@ using System.Numerics;
 
 public class MyBot : IChessBot
 {
+    // todo: mvv lva, iterative deepening + transposition table
     int[,,] pst = new int[2, 6, 64];
 
     int[] value_mg = { 82, 237, 365, 477, 1025, 0 };
@@ -15,7 +16,7 @@ public class MyBot : IChessBot
 
     Move best_move;
 
-    const int max_depth = 3;
+    const int max_depth = 4;
 
     const int table_size = 1 << 20;
     (ulong, int, int, int, Move)[] tt = new (ulong, int, int, int, Move)[table_size];
@@ -77,22 +78,24 @@ public class MyBot : IChessBot
     public int Negamax(Board board, int depth, int alpha, int beta, Timer timer, int ply)
     {
         if (board.IsInCheckmate()) return -10000;
+        if (board.IsInStalemate()) return 0;
 
         if (ply > 0 && board.IsRepeatedPosition())
         {
             return 0;
         }
 
+        ulong bkey = board.ZobristKey;
         int bestValue = int.MinValue;
-        Move[] consider_moves;
 
-        if (depth <= 0)
+        bool quiescence = depth <= 0;
+
+        if (quiescence)
         {
-            consider_moves = board.GetLegalMoves(true);
-
             bestValue = Eval(board);
 
-            if (bestValue >= beta || timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 30)
+            // if (bestValue >= beta || timer.MillisecondsElapsedThisTurn > timer.MillisecondsRemaining / 30)
+            if (bestValue >= beta)
             {
                 return bestValue;
             }
@@ -102,17 +105,33 @@ public class MyBot : IChessBot
                 alpha = bestValue;
             }
         }
-        else
-        {
-            consider_moves = board.GetLegalMoves();
+
+        Move[] consider_moves = board.GetLegalMoves(quiescence);
+        int[] priority = new int[consider_moves.Length];
+
+        for (int i = 0; i < consider_moves.Length; i++) {
+            Move cur = consider_moves[i];
+
+            priority[i] = 10000;
+
+            if (consider_moves[i].IsCapture) {
+                // maybe consider adding value of check later?
+
+                // subtracting backwards cause sort in ascending
+                priority[i] = value_mg[(int)cur.MovePieceType - 1] - value_mg[(int)cur.CapturePieceType - 1];
+            }
         }
+
+        // maybe sorting on the fly is better when alpha >= beta
+        // for now pre sort everything
+
+        Array.Sort(priority, consider_moves);
 
         foreach (Move move in consider_moves)
         {
             board.MakeMove(move);
             int value = -Negamax(board, depth - 1, -beta, -alpha, timer, ply + 1);
             board.UndoMove(move);
-
 
             if (bestValue < value)
             {
@@ -137,12 +156,8 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer)
     {
-        // for (int d = 1;; d++) {
+        // for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 30; d++) {
         //     Negamax(board, d, -10000, 10000, timer, 0);
-
-        //     if (d > max_depth) {
-        //         break;
-        //     }
         // }
         Negamax(board, max_depth, -10000, 10000, timer, 0);
 

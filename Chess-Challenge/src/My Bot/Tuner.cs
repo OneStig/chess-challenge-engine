@@ -198,25 +198,27 @@ namespace ChessChallenge.Application
 
 		public static void Consolidate()
 		{
-			decimal[] output = new decimal[mg_table.Length / 10];
+			// decimal[] output = new decimal[mg_table.Length / 10];
 
-			Console.Write(mg_table.Length + "{");
+			// Console.Write(mg_table.Length + "{");
 
-			for (int i = 0; i < mg_table.Length / 10; i++) {
-				byte[] cur_vals = new byte[10];
-				bool[] cur_parity = new bool[10];
+			// for (int i = 0; i < mg_table.Length / 10; i++) {
+			// 	byte[] cur_vals = new byte[10];
+			// 	bool[] cur_parity = new bool[10];
 
-				for (int j = 0; j < 10; j++) {
-					cur_vals[j] = (byte)Math.Abs(mg_table[i * 10 + j]);
-					cur_parity[j] = mg_table[i * 10 + j] < 0;
-				}
+			// 	for (int j = 0; j < 10; j++) {
+			// 		cur_vals[j] = (byte)Math.Abs(mg_table[i * 10 + j]);
+			// 		cur_parity[j] = mg_table[i * 10 + j] < 0;
+			// 	}
 
-				output[i] = Encode(cur_parity, cur_vals);
+			// 	output[i] = Encode(cur_parity, cur_vals);
 
-				Console.Write(output[i] + "m, ");
-			}
+			// 	Console.Write(output[i] + "m, ");
+			// }
 
-			Console.WriteLine("}");
+			// Console.WriteLine("}");
+
+			Test();
 		}
 	}
 }
