@@ -10,6 +10,7 @@ public class MyBot : IChessBot
 
     // TELEMETRY //
     // int nodes;
+    // int eval_recount = 0;
     // ========= //
 
 
@@ -23,6 +24,7 @@ public class MyBot : IChessBot
           bw = {0, 1};
 
     Move best_move;
+    int time_coeff = 35;
 
      // max search depth, size of transposition table
     const int max_depth = 60, tpt_size = 1 << 20;
@@ -48,10 +50,15 @@ public class MyBot : IChessBot
             }
         }
     }
+
     int Eval(Board board)
     {
+        if (tpt[board.ZobristKey % tpt_size].Item1 == board.ZobristKey) {
+            return tpt[board.ZobristKey % tpt_size].Item3;
+        }
+
         int tb_ind(int n) => (7 - n / 8) * 8 + (n % 8);
-        int safety_table(int ind) => (ind > 60 ? 500 : ind * ind / 8);
+        int safety_table(int ind) => (ind > 60 ? 500 : ind * ind / 8) / 2;
 
         int gamePhase = 0, attack_unit_sum = 0, mg_sum = 0, eg_sum = 0;
 
@@ -167,7 +174,7 @@ public class MyBot : IChessBot
 
         foreach (Move move in consider_moves)
         {
-            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / 35) {
+            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / time_coeff) {
                 return bestValue;
             }
                 
@@ -202,7 +209,8 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer)
     {
         // Console.WriteLine("board: " + Eval(board));
-        for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / 35; d++) {
+
+        for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / time_coeff; d++) {
             // nodes = 0;
             int eval = Negamax(board, d, -10000, 10000, timer, 0);
 
