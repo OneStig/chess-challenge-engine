@@ -5,6 +5,7 @@ using System.Numerics;
 
 public class MyBot : IChessBot
 {
+    // chess challenge docs: https://seblague.github.io/chess-coding-challenge/documentation/
     // todo: mvv lva, iterative deepening + transposition table
     // https://www.chessprogramming.org/King_Safety
 
@@ -24,7 +25,6 @@ public class MyBot : IChessBot
           bw = {0, 1};
 
     Move best_move;
-    int time_coeff = 35;
 
      // max search depth, size of transposition table
     const int max_depth = 60, tpt_size = 1 << 20;
@@ -51,6 +51,11 @@ public class MyBot : IChessBot
         }
     }
 
+    bool time_constraint(Timer timer, int moves) {
+        return timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining /
+            (moves < 8 ? 60 : (moves < 30 ? 25 : 35));
+    }
+
     int Eval(Board board)
     {
         if (tpt[board.ZobristKey % tpt_size].Item1 == board.ZobristKey) {
@@ -60,7 +65,7 @@ public class MyBot : IChessBot
         int tb_ind(int n) => (7 - n / 8) * 8 + (n % 8);
         int safety_table(int ind) => (ind > 60 ? 500 : ind * ind / 8) / 2;
 
-        int gamePhase = 0, attack_unit_sum = 0, mg_sum = 0, eg_sum = 0;
+        int gamePhase = 24, attack_unit_sum = 0, mg_sum = 0, eg_sum = 0;
 
         foreach (int color in bw) {
             bool is_white = color == 1;
@@ -68,7 +73,7 @@ public class MyBot : IChessBot
 
             for (int i = 0; i < 6; i++) {
                 PieceList pl = board.GetPieceList((PieceType)(i + 1), is_white);
-                gamePhase += value_gp[i] * pl.Count;
+                gamePhase -= value_gp[i] * pl.Count;
 
                 foreach (Piece p in pl) {
                     int ind = is_white ? tb_ind(p.Square.Index) : p.Square.Index;
@@ -96,9 +101,9 @@ public class MyBot : IChessBot
             eg_sum *= -1;
         }
 
-        // in case of promotion resulting in > 24
-        gamePhase = Math.Min(gamePhase, 24);
-        int sum = (mg_sum * gamePhase + eg_sum * (24 - gamePhase)) / 24 + attack_unit_sum;
+        // in case of promotion resulting in < 24
+        gamePhase = (Math.Max(gamePhase, 0) * 256 + 12) / 24;
+        int sum = ((mg_sum * (256 - gamePhase)) + ((eg_sum + attack_unit_sum) * gamePhase)) / 256;
 
         return board.IsWhiteToMove ? -sum : sum;
     }
@@ -174,7 +179,7 @@ public class MyBot : IChessBot
 
         foreach (Move move in consider_moves)
         {
-            if (timer.MillisecondsElapsedThisTurn >= timer.MillisecondsRemaining / time_coeff) {
+            if (!time_constraint(timer, board.GameMoveHistory.Length)) {
                 return bestValue;
             }
                 
@@ -209,13 +214,13 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer)
     {
         // Console.WriteLine("board: " + Eval(board));
-
-        for (int d = 1; d <= max_depth && timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining / time_coeff; d++) {
+        int d = 1;
+        do {
             // nodes = 0;
             int eval = Negamax(board, d, -10000, 10000, timer, 0);
-
             // Console.WriteLine($"Depth: {d}; \x1b[31m{best_move}\x1b[0m: {eval} ; Nodes searched: {nodes} @ {timer.MillisecondsElapsedThisTurn}ms");
-        }
+            d++;
+        } while (d <= max_depth && time_constraint(timer, board.GameMoveHistory.Length));
 
         return best_move;
     }
