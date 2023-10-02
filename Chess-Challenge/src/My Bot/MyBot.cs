@@ -6,8 +6,6 @@ using System.Numerics;
 public class MyBot : IChessBot
 {
     // chess challenge docs: https://seblague.github.io/chess-coding-challenge/documentation/
-    // todo: mvv lva, iterative deepening + transposition table
-    // https://www.chessprogramming.org/King_Safety
 
     // TELEMETRY //
     // int nodes;
@@ -87,8 +85,7 @@ public class MyBot : IChessBot
                     eg_sum += pst[1, i, ind] + value_eg[i];
                     // Console.WriteLine($"mg {p_type_ind} {ind} {pst[0, p_type_ind, ind]}");
 
-                    // king safety stuff
-
+                    // king safety
                     attack_unit_sum += safety_table(attack_units[i] *
                         BitboardHelper.GetNumberOfSetBits(
                             opp_king_squares & BitboardHelper.GetPieceAttacks(
@@ -108,9 +105,9 @@ public class MyBot : IChessBot
 
         // in case of promotion resulting in < 24
         gamePhase = (Math.Max(gamePhase, 0) * 256 + 12) / 24;
-        int sum = ((mg_sum * (256 - gamePhase)) + ((eg_sum + attack_unit_sum) * gamePhase)) / 256;
 
-        return board.IsWhiteToMove ? -sum : sum;
+        return ((mg_sum * (256 - gamePhase)) + ((eg_sum + attack_unit_sum) * gamePhase)) / 256
+                * (board.IsWhiteToMove ? -1 : 1);
     }
 
     int Negamax(Board board, int depth, int alpha, int beta, Timer timer, int ply)
@@ -118,14 +115,11 @@ public class MyBot : IChessBot
         // nodes++;
 
         if (board.IsInCheckmate()) return -20000 + ply;
-        if (board.IsDraw()) return 0;
+        if (board.IsDraw() || ply > 0 && board.IsRepeatedPosition()) return 0;
 
-        if (ply > 0 && board.IsRepeatedPosition()) return 0;
+        ulong bkey = board.ZobristKey, bkey_mod = bkey % tpt_size;
 
-        ulong bkey = board.ZobristKey;
-        ulong bkey_mod = bkey % tpt_size;
-
-        int bestValue = int.MinValue;
+        int bestValue = -20000;
 
         bool quiescence = depth <= 0;
 
