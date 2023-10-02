@@ -1,10 +1,11 @@
 ﻿using ChessChallenge.API;
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.Numerics;
 
 public class MyBot : IChessBot
 {
+    // repo: https://github.com/OneStig/guppy
     // chess challenge docs: https://seblague.github.io/chess-coding-challenge/documentation/
 
     // TELEMETRY //
