@@ -21,12 +21,12 @@ public class MyBot : IChessBot
           value_eg = { 94, 281, 297, 512, 936, 0 },
           value_gp = { 0, 1, 1, 2, 4, 0 },
           attack_units = { 1, 2, 2, 3, 5, 0 },
-          
-          bw = {0, 1};
+
+          bw = { 0, 1 };
 
     Move best_move;
 
-     // max search depth, size of transposition table
+    // max search depth, size of transposition table
     const int max_depth = 60, tpt_size = 1 << 20;
 
     // zobrist key, depth, eval, bound, best move found 
@@ -41,9 +41,11 @@ public class MyBot : IChessBot
 
         // pre process the pst to reduce method calls to query the raw table
 
-        foreach (int phase in bw) {
+        foreach (int phase in bw)
+        {
             // only go to 384, because last 6 are empty 0s off the board to make multiples of 10
-            for (int i = 0; i < 384; i++) {
+            for (int i = 0; i < 384; i++)
+            {
                 BigInteger segment = (BigInteger.Parse(raw_mgeg_table[phase * 39 + i / 10].ToString()) >> 9 * (i % 10)) & 0x1FF;
 
                 pst[phase, i / 64, i % 64] = (short)((segment & 0xFF) * ((segment & (1 << 8)) != 0 ? -1 : 1));
@@ -51,40 +53,43 @@ public class MyBot : IChessBot
         }
     }
 
-    bool time_constraint(Timer timer, int moves) {
+    bool time_constraint(Timer timer, int moves)
+    {
         return timer.MillisecondsElapsedThisTurn < timer.MillisecondsRemaining /
             (moves < 8 ? 60 : (moves < 30 ? 25 : 35));
     }
 
     int Eval(Board board)
     {
-        if (tpt[board.ZobristKey % tpt_size].Item1 == board.ZobristKey) {
+        if (tpt[board.ZobristKey % tpt_size].Item1 == board.ZobristKey)
             return tpt[board.ZobristKey % tpt_size].Item3;
-        }
 
         int tb_ind(int n) => (7 - n / 8) * 8 + (n % 8);
         int safety_table(int ind) => (ind > 60 ? 500 : ind * ind / 8) / 2;
 
         int gamePhase = 24, attack_unit_sum = 0, mg_sum = 0, eg_sum = 0;
 
-        foreach (int color in bw) {
+        foreach (int color in bw)
+        {
             bool is_white = color == 1;
             ulong opp_king_squares = BitboardHelper.GetKingAttacks(board.GetKingSquare(!is_white));
 
-            for (int i = 0; i < 6; i++) {
+            for (int i = 0; i < 6; i++)
+            {
                 PieceList pl = board.GetPieceList((PieceType)(i + 1), is_white);
                 gamePhase -= value_gp[i] * pl.Count;
 
-                foreach (Piece p in pl) {
+                foreach (Piece p in pl)
+                {
                     int ind = is_white ? tb_ind(p.Square.Index) : p.Square.Index;
 
                     mg_sum += pst[0, i, ind] + value_mg[i];
                     eg_sum += pst[1, i, ind] + value_eg[i];
                     // Console.WriteLine($"mg {p_type_ind} {ind} {pst[0, p_type_ind, ind]}");
-                
+
                     // king safety stuff
-                    
-                    attack_unit_sum += safety_table(attack_units[i] * 
+
+                    attack_unit_sum += safety_table(attack_units[i] *
                         BitboardHelper.GetNumberOfSetBits(
                             opp_king_squares & BitboardHelper.GetPieceAttacks(
                                 (PieceType)(i + 1),
@@ -112,7 +117,7 @@ public class MyBot : IChessBot
     {
         // nodes++;
 
-        if (board.IsInCheckmate()) return -10000 + ply;
+        if (board.IsInCheckmate()) return -20000 + ply;
         if (board.IsDraw()) return 0;
 
         if (ply > 0 && board.IsRepeatedPosition()) return 0;
@@ -131,20 +136,21 @@ public class MyBot : IChessBot
         // 3. ensure stored info calculated deeper
         // 4. check if alternative better score was reached
         if (ply > 0 && cur_tpt.Item1 == bkey && cur_tpt.Item2 >= depth &&
-            (cur_tpt.Item4 == 3 || 
-             cur_tpt.Item4 == 2 && cur_tpt.Item3 >= beta ||
-             cur_tpt.Item4 == 1 && cur_tpt.Item3 <= alpha)) {
-                return cur_tpt.Item3;
-             }
-        
+            (cur_tpt.Item4 switch
+            {
+                3 => true,
+                2 => cur_tpt.Item3 >= beta,
+                1 => cur_tpt.Item3 <= alpha,
+                _ => false
+            })) return cur_tpt.Item3;
+
         if (quiescence)
         {
             bestValue = Eval(board);
 
-            if (bestValue >= beta) {
+            if (bestValue >= beta)
                 return bestValue;
-            }
-            
+
             alpha = Math.Max(alpha, bestValue);
         }
 
@@ -153,21 +159,26 @@ public class MyBot : IChessBot
         Move[] consider_moves = board.GetLegalMoves(quiescence);
         int[] priority = new int[consider_moves.Length];
 
-        for (int i = 0; i < consider_moves.Length; i++) {
+        for (int i = 0; i < consider_moves.Length; i++)
+        {
             Move cur = consider_moves[i];
-
-            priority[i] = 1<<10;
 
             // start search with last found best
             if (consider_moves[i] == cur_tpt.Item5 && cur_tpt.Item1 == bkey)
-                priority[i] = -10000;
+                priority[i] = -20000;
 
-            if (consider_moves[i].IsCapture) {
-                // maybe consider adding value of check later?
-
+            if (consider_moves[i].IsCapture)
                 // subtracting backwards cause sort in ascending
-                priority[i] = value_mg[(int)cur.MovePieceType - 1] - value_mg[(int)cur.CapturePieceType - 1];
-            }
+                priority[i] = value_mg[(int)cur.MovePieceType - 1] - 100 * value_mg[(int)cur.CapturePieceType - 1];
+
+
+            // prioritize checks. but maybe testing all these moves is expensive?
+            board.MakeMove(cur);
+
+            if (board.IsInCheck())
+                priority[i] -= 10000;
+
+            board.UndoMove(cur);
         }
 
         // maybe sorting on the fly is better when alpha >= beta
@@ -179,10 +190,9 @@ public class MyBot : IChessBot
 
         foreach (Move move in consider_moves)
         {
-            if (!time_constraint(timer, board.GameMoveHistory.Length)) {
+            if (!time_constraint(timer, board.GameMoveHistory.Length))
                 return bestValue;
-            }
-                
+
             board.MakeMove(move);
             int value = -Negamax(board, depth - 1, -beta, -alpha, timer, ply + 1);
             board.UndoMove(move);
@@ -195,16 +205,11 @@ public class MyBot : IChessBot
 
             alpha = Math.Max(alpha, value);
 
-            if (alpha >= beta)
-            {
-                break;
-            }
+            if (alpha >= beta) break;
         }
 
         if (ply == 0)
-        {
             best_move = local_best;
-        }
 
         tpt[bkey_mod] = (bkey, depth, bestValue, bestValue >= beta ? 2 : bestValue > f_alpha ? 3 : 1, local_best);
 
@@ -215,9 +220,11 @@ public class MyBot : IChessBot
     {
         // Console.WriteLine("board: " + Eval(board));
         int d = 1;
-        do {
+
+        do
+        {
             // nodes = 0;
-            int eval = Negamax(board, d, -10000, 10000, timer, 0);
+            int eval = Negamax(board, d, -20000, 20000, timer, 0);
             // Console.WriteLine($"Depth: {d}; \x1b[31m{best_move}\x1b[0m: {eval} ; Nodes searched: {nodes} @ {timer.MillisecondsElapsedThisTurn}ms");
             d++;
         } while (d <= max_depth && time_constraint(timer, board.GameMoveHistory.Length));
